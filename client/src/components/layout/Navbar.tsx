@@ -1,14 +1,14 @@
-﻿import { Bell, Search, Menu } from 'lucide-react'
+import { Bell, Search, Menu, CircleDot, Settings2, Command, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../lib/axios'
 import { Avatar } from '../ui/Avatar'
 
-interface NavbarProps { onMenuToggle: () => void }
+interface NavbarProps { onMenuToggle: () => void; onSidebarToggle: () => void }
 
-export function Navbar({ onMenuToggle }: NavbarProps) {
+export function Navbar({ onMenuToggle, onSidebarToggle }: NavbarProps) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -19,71 +19,94 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
     queryFn: () => api.get('/notifications?isRead=false&limit=1').then(r => r.data),
     refetchInterval: 30000,
   })
+
   const unreadCount = notifRes?.data?.unreadCount ?? 0
+  const statusPill = useMemo(() => ({ label: unreadCount > 0 ? `${unreadCount} alerts` : 'All clear', tone: unreadCount > 0 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200' }), [unreadCount])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        navigate('/search')
+      }
+    }
+    window.addEventListener('keydown', onShortcut)
+    return () => window.removeEventListener('keydown', onShortcut)
+  }, [navigate])
+
   return (
-    <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 z-10">
-      <div className="flex items-center gap-3">
-        <button onClick={onMenuToggle} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-          <Menu className="w-5 h-5" />
-        </button>
-        <div className="hidden md:flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 w-56">
-          <Search className="w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Quick search..." className="bg-transparent text-sm text-gray-600 outline-none w-full placeholder-gray-400" readOnly />
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Link to="/notifications" className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Link>
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 p-1.5 pr-3 rounded-xl hover:bg-gray-100 transition-colors"
-          >
-            <Avatar src={user?.avatar} name={`${user?.firstName} ${user?.lastName}`} size="sm" />
-            <div className="hidden md:block text-left">
-              <p className="text-sm font-medium text-gray-800 leading-none">{user?.firstName} {user?.lastName}</p>
-              <p className="text-xs text-gray-500 capitalize mt-0.5">{user?.role}</p>
-            </div>
+    <header className="sticky top-0 z-10 border-b border-white/60 bg-white/80 backdrop-blur-xl">
+      <div className="flex h-20 items-center justify-between gap-4 px-4 lg:px-6">
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onMenuToggle} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 lg:hidden">
+            <Menu className="h-5 w-5" />
           </button>
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-fade-in">
-              <div className="px-4 py-2.5 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-800">{user?.firstName} {user?.lastName}</p>
-                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+          <button type="button" onClick={onSidebarToggle} className="hidden rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 lg:inline-flex" aria-label="Toggle sidebar density">
+            <ChevronDown className="h-5 w-5 -rotate-90" />
+          </button>
+          <div className="hidden min-w-[320px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 shadow-sm md:flex lg:min-w-[420px]">
+            <Search className="h-4 w-4 text-slate-400" />
+            <input type="text" placeholder="Search employees, payroll, leaves..." className="w-full bg-transparent outline-none placeholder:text-slate-400" readOnly />
+            <kbd className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">⌘K</kbd>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 lg:gap-3">
+          <div className={`hidden items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-sm sm:flex ${statusPill.tone}`}>
+            <CircleDot className="h-3.5 w-3.5" />
+            {statusPill.label}
+          </div>
+          <div className="hidden items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 shadow-sm md:flex">
+            <Command className="h-3.5 w-3.5" />
+            Quick actions ready
+          </div>
+          <Link to="/notifications" className="relative rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-600 px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+          </Link>
+          <div className="relative" ref={dropdownRef}>
+            <button type="button" onClick={() => setDropdownOpen((value) => !value)} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200">
+              <Avatar src={user?.avatar} name={`${user?.firstName} ${user?.lastName}`} size="sm" />
+              <div className="hidden text-left md:block">
+                <p className="text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs capitalize text-slate-500">{user?.role}</p>
               </div>
-              <Link to="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                My Profile
-              </Link>
-              <Link to="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                Settings
-              </Link>
-              <div className="border-t border-gray-100 pt-1">
-                <button
-                  onClick={() => { logout(); navigate('/login'); setDropdownOpen(false) }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Sign Out
-                </button>
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </button>
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_25px_80px_-35px_rgba(15,23,42,0.45)]">
+                <div className="border-b border-slate-100 px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar src={user?.avatar} name={`${user?.firstName} ${user?.lastName}`} size="md" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
+                      <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-2">
+                  <Link to="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <Settings2 className="h-4 w-4" />
+                    My Profile
+                  </Link>
+                  <Link to="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <Settings2 className="h-4 w-4" />
+                    Settings
+                  </Link>
+                  <button type="button" onClick={() => { logout(); navigate('/login'); setDropdownOpen(false) }} className="mt-1 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-rose-600 transition hover:bg-rose-50">
+                    Sign Out
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </header>

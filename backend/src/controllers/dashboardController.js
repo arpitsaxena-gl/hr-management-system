@@ -1,4 +1,4 @@
-﻿const Employee = require('../models/Employee');
+const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const Payroll = require('../models/Payroll');

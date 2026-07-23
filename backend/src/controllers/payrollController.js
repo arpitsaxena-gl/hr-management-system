@@ -1,8 +1,16 @@
-﻿const Payroll = require('../models/Payroll');
+const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
 const ApiResponse = require('../utils/apiResponse');
 const { createError } = require('../utils/helpers');
 const { calculatePayroll } = require('../services/payrollService');
+
+const normalizeMonthYear = (month, year) => {
+  const m = Number.parseInt(month, 10);
+  const y = Number.parseInt(year, 10);
+  if (!Number.isInteger(m) || m < 1 || m > 12) throw createError('Valid month is required', 400);
+  if (!Number.isInteger(y) || y < 2000 || y > 2100) throw createError('Valid year is required', 400);
+  return { m, y };
+};
 
 const getPayrolls = async (req, res, next) => {
   try {
@@ -13,11 +21,11 @@ const getPayrolls = async (req, res, next) => {
       const emp = await Employee.findOne({ user: req.user._id });
       if (emp) query.employee = emp._id;
     } else if (employeeId) query.employee = employeeId;
-    if (month) query.month = parseInt(month);
-    if (year) query.year = parseInt(year);
+    if (month) query.month = parseInt(month, 10);
+    if (year) query.year = parseInt(year, 10);
     if (status) query.status = status;
     const [payrolls, total] = await Promise.all([
-      Payroll.find(query).populate({ path: 'employee', populate: { path: 'user', select: 'firstName lastName' }, select: 'employeeId' }).populate('processedBy', 'firstName lastName').skip(skip).limit(limit).sort({ year: -1, month: -1 }),
+      Payroll.find(query).populate({ path: 'employee', populate: { path: 'user', select: 'firstName lastName avatar' }, select: 'employeeId designation' }).populate('processedBy', 'firstName lastName').skip(skip).limit(limit).sort({ year: -1, month: -1 }),
       Payroll.countDocuments(query)
     ]);
     ApiResponse.paginated(res, payrolls, total, page, limit);
@@ -26,26 +34,35 @@ const getPayrolls = async (req, res, next) => {
 
 const processPayroll = async (req, res, next) => {
   try {
-    const { month, year, employeeIds } = req.body;
+    const { m: month, y: year } = normalizeMonthYear(req.body.month, req.body.year);
+    const employeeIds = Array.isArray(req.body.employeeIds) ? req.body.employeeIds.filter(Boolean) : [];
     let employees;
-    if (employeeIds && employeeIds.length > 0) employees = await Employee.find({ _id: { $in: employeeIds } });
+    if (employeeIds.length > 0) employees = await Employee.find({ _id: { $in: employeeIds } });
     else employees = await Employee.find({ employmentStatus: 'active' });
     const results = await Promise.allSettled(employees.map(async (emp) => {
       const existing = await Payroll.findOne({ employee: emp._id, month, year });
-      if (existing && existing.status !== 'draft') throw new Error(`Payroll already processed for ${emp.employeeId}`);
+      if (existing && existing.status !== 'draft') throw createError(`Payroll already processed for ${emp.employeeId}`, 409);
       const data = await calculatePayroll(emp, month, year);
-      if (existing) return Payroll.findByIdAndUpdate(existing._id, { ...data, processedBy: req.user._id, processedAt: new Date(), updatedBy: req.user._id }, { new: true });
-      return Payroll.create({ ...data, processedBy: req.user._id, processedAt: new Date(), createdBy: req.user._id });
+      const payload = { ...data, month, year, processedBy: req.user._id, processedAt: new Date(), updatedBy: req.user._id };
+      if (existing) return Payroll.findByIdAndUpdate(existing._id, payload, { new: true });
+      return Payroll.create({ ...payload, createdBy: req.user._id });
     }));
     const success = results.filter(r => r.status === 'fulfilled').length;
-    ApiResponse.success(res, { processed: success, failed: results.length - success }, 'Payroll processed');
+    const failed = results.length - success;
+    ApiResponse.success(res, { processed: success, failed }, 'Payroll processed');
   } catch (err) { next(err); }
 };
 
 const approvePayroll = async (req, res, next) => {
   try {
-    const payroll = await Payroll.findByIdAndUpdate(req.params.id, { status: 'processed', approvedBy: req.user._id, approvedAt: new Date(), updatedBy: req.user._id }, { new: true });
+    const payroll = await Payroll.findById(req.params.id);
     if (!payroll) return next(createError('Payroll not found', 404));
+    if (payroll.status !== 'draft') return next(createError('Only draft payrolls can be approved', 400));
+    payroll.status = 'processed';
+    payroll.approvedBy = req.user._id;
+    payroll.approvedAt = new Date();
+    payroll.updatedBy = req.user._id;
+    await payroll.save();
     ApiResponse.success(res, payroll, 'Payroll approved');
   } catch (err) { next(err); }
 };
@@ -53,22 +70,28 @@ const approvePayroll = async (req, res, next) => {
 const markAsPaid = async (req, res, next) => {
   try {
     const { paymentDate, paymentMethod, transactionId } = req.body;
-    const payroll = await Payroll.findByIdAndUpdate(req.params.id, { status: 'paid', paymentDate: paymentDate || new Date(), paymentMethod, transactionId, updatedBy: req.user._id }, { new: true });
+    if (!paymentMethod || typeof paymentMethod !== 'string') return next(createError('paymentMethod is required', 400));
+    const payroll = await Payroll.findById(req.params.id);
     if (!payroll) return next(createError('Payroll not found', 404));
+    if (payroll.status !== 'processed') return next(createError('Only processed payrolls can be marked as paid', 400));
+    payroll.status = 'paid';
+    payroll.paymentDate = paymentDate ? new Date(paymentDate) : new Date();
+    payroll.paymentMethod = paymentMethod;
+    payroll.transactionId = transactionId || payroll.transactionId;
+    payroll.updatedBy = req.user._id;
+    await payroll.save();
     ApiResponse.success(res, payroll, 'Payroll marked as paid');
   } catch (err) { next(err); }
 };
 
 const getPayrollSummary = async (req, res, next) => {
   try {
-    const { month, year } = req.query;
-    const m = parseInt(month) || new Date().getMonth() + 1;
-    const y = parseInt(year) || new Date().getFullYear();
+    const { m: month, y: year } = normalizeMonthYear(req.query.month || new Date().getMonth() + 1, req.query.year || new Date().getFullYear());
     const summary = await Payroll.aggregate([
-      { $match: { month: m, year: y } },
+      { $match: { month, year } },
       { $group: { _id: '$status', count: { $sum: 1 }, totalGross: { $sum: '$earnings.grossEarnings' }, totalNet: { $sum: '$netSalary' }, totalDeductions: { $sum: '$deductions.totalDeductions' } } }
     ]);
-    ApiResponse.success(res, { month: m, year: y, summary });
+    ApiResponse.success(res, { month, year, summary });
   } catch (err) { next(err); }
 };
 
