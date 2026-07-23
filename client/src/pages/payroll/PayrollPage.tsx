@@ -5,7 +5,7 @@ import { StatCard } from '../../components/ui/StatCard'
 import { usePermissions } from '../../hooks/usePermissions'
 import {
   DollarSign, Play, Check, ChevronDown, ArrowDownAZ, ArrowUpAZ, Filter, CalendarRange,
-  Sparkles, BadgeCheck, MoreVertical, CircleDot, Clock3, ArrowRightLeft, UserCircle2, BriefcaseBusiness
+  Sparkles, BadgeCheck, MoreVertical, CircleDot, Clock3, ArrowRightLeft, BriefcaseBusiness
 } from 'lucide-react'
 import type { Payroll } from '../../types'
 import toast from 'react-hot-toast'

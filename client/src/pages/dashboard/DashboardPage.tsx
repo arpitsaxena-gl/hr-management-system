@@ -6,11 +6,10 @@ import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
 import {
   Users, Clock, Calendar, DollarSign, UserPlus, TrendingUp, Building2, Briefcase,
-  Sparkles, ChevronRight, CheckCircle2, MoonStar, Clock3, ChartArea, CircleDashed,
-  ClipboardList, MessageSquareMore, Umbrella, UserRoundPlus, Waves, ArrowRight
+  Sparkles, ChevronRight, CheckCircle2, Clock3, ClipboardList, MessageSquareMore, Umbrella, UserRoundPlus, Waves, ArrowRight
 } from 'lucide-react'
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Line
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts'
 
 const TREND_COLORS = {
@@ -77,7 +76,8 @@ export default function DashboardPage() {
       else acc.push({ label: key, present: 0, on_leave: 0, absent: 0, [status]: item.count })
       return acc
     }, [])
-    return rows.slice(-period === 'daily' ? 7 : period === 'weekly' ? 8 : 6)
+    const windowSize = period === 'daily' ? 7 : period === 'weekly' ? 8 : 6
+    return rows.slice(-windowSize)
   }, [d.charts?.monthlyTrend, period])
 
   const deptBreakdown = d.charts?.deptDistribution ?? []
@@ -203,7 +203,6 @@ export default function DashboardPage() {
                   <Area type="monotone" dataKey="present" stroke={TREND_COLORS.present} fill="url(#presentFill)" strokeWidth={3} />
                   <Area type="monotone" dataKey="on_leave" stroke={TREND_COLORS.on_leave} fill="url(#leaveFill)" strokeWidth={3} />
                   <Area type="monotone" dataKey="absent" stroke={TREND_COLORS.absent} fill="url(#absentFill)" strokeWidth={3} />
-                  <Line type="monotone" dataKey="present" stroke="#1d4ed8" strokeWidth={0} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
