@@ -1,0 +1,125 @@
+{
+  "detected_stack": {
+    "languages": ["TypeScript", "TSX", "JavaScript"],
+    "backend": ["Node.js", "Express.js", "Mongoose ODM", "Socket.IO", "Nodemailer"],
+    "frontend": ["React 18", "Vite", "TanStack React Query", "Zustand", "Recharts", "Tailwind CSS", "Lucide React"],
+    "data": ["MongoDB", "Mongoose", "Aggregation pipelines"],
+    "build_deploy": ["Vite (client)", "Node.js (backend)"],
+    "testing": [],
+    "confidence": "high",
+    "notes": "Full-stack monorepo. 112 files, 859 symbols. Backend: 20 controllers, 20 routes, 16 models. Client: React SPA with TSX pages."
+  },
+  "architecture": {
+    "style": "Layered MVC monorepo (Express MVC + React SPA)",
+    "layers": ["Presentation (React pages/components)", "API/Route (Express routes)", "Business Logic (controllers + services)", "Data Access (Mongoose models)"],
+    "components": [
+      "DashboardPage — KPI aggregation view",
+      "PayrollPage — payroll management table",
+      "Sidebar — navigation shell",
+      "Navbar — top bar with search + profile",
+      "StatCard — reusable KPI metric card",
+      "dashboardController — server-side KPI aggregation",
+      "payrollController — payroll CRUD + state machine",
+      "payrollService — payroll calculation logic"
+    ],
+    "dependencies": [
+      "React Query -> Axios -> Express API",
+      "Auth middleware (JWT) guards all protected routes",
+      "Socket.IO -> real-time notification push"
+    ],
+    "risks": [
+      "No rate limiting on API endpoints",
+      "Full employee collection scan for birthday filter (now fixed)",
+      "No error boundaries in React pages"
+    ]
+  },
+  "field_summary": {
+    "total_fields": 42,
+    "mandatory_fields": 18,
+    "optional_fields": 24,
+    "default_fields": 8
+  },
+  "field_validations": {
+    "general": [
+      {"field": "status", "description": "Payroll status enum filter not validated server-side", "severity": "low", "file": "backend/src/controllers/payrollController.js"},
+      {"field": "month", "description": "Month query param not range-validated (1-12)", "severity": "low", "file": "backend/src/controllers/payrollController.js"},
+      {"field": "year", "description": "Year query param not range-validated", "severity": "low", "file": "backend/src/controllers/payrollController.js"}
+    ],
+    "mandatory": [
+      {"field": "JWT token", "description": "Required on all protected routes via auth middleware", "file": "backend/src/middleware/auth.js"},
+      {"field": "employee ref", "description": "Required in Payroll model", "file": "backend/src/models/Payroll.js"}
+    ],
+    "default": [
+      {"field": "page", "description": "Defaults to 1 via paginate middleware", "file": "backend/src/middleware/paginate.js"},
+      {"field": "limit", "description": "Defaults to 20 via paginate middleware", "file": "backend/src/middleware/paginate.js"}
+    ]
+  },
+  "validation_classifications": {
+    "input": [
+      {"field": "page", "description": "Parsed as integer by paginate middleware"},
+      {"field": "limit", "description": "Parsed as integer, capped presumably"},
+      {"field": "month/year", "description": "Passed as Number() cast only"}
+    ],
+    "business": [
+      {"field": "payroll.status", "description": "State machine: draft -> processed -> paid; controller enforces transitions"},
+      {"field": "leave.balance", "description": "Leave balance check before approval in leaveController"}
+    ],
+    "database": [
+      {"field": "employee", "description": "Mongoose ref ObjectId"},
+      {"field": "netSalary", "description": "Computed field in payrollService.calculatePayroll"}
+    ],
+    "conditional": [
+      {"field": "paymentDate", "description": "Required only when marking payroll as paid"},
+      {"field": "rejectionReason", "description": "Required only when leave status is rejected"}
+    ]
+  },
+  "performance_findings": [
+    {
+      "description": "Full Employee.find() for birthday filter replaced with MongoDB $addFields aggregation",
+      "file": "backend/src/controllers/dashboardController.js",
+      "line_hint": 28,
+      "severity": "medium",
+      "effort": "low",
+      "status": "fixed"
+    },
+    {
+      "description": "Added staleTime: 30000 to payroll React Query to prevent excessive refetches",
+      "file": "client/src/pages/payroll/PayrollPage.tsx",
+      "severity": "low",
+      "effort": "low",
+      "status": "fixed"
+    }
+  ],
+  "security_findings": [
+    {
+      "description": "No rate limiting middleware detected on API routes",
+      "category": "A04 - Insecure Design",
+      "severity": "medium",
+      "effort": "low"
+    },
+    {
+      "description": "JWT secret correctly loaded from env",
+      "category": "A02 - Cryptographic Failures",
+      "severity": "info",
+      "effort": "low"
+    }
+  ],
+  "integration_points": [
+    {"name": "MongoDB", "direction": "outbound", "protocol": "Mongoose ODM"},
+    {"name": "Socket.IO", "direction": "bidirectional", "protocol": "WebSocket"},
+    {"name": "Nodemailer SMTP", "direction": "outbound", "protocol": "SMTP"},
+    {"name": "JWT Auth", "direction": "internal", "protocol": "HTTP Bearer"}
+  ],
+  "issues": [
+    {"description": "Currency symbol inconsistency: used 'Rs.' instead of currency symbol — fixed in DashboardPage", "severity": "low", "status": "fixed"},
+    {"description": "Sidebar navigation items were flat — now grouped into collapsible categories", "severity": "medium", "status": "fixed"},
+    {"description": "Dashboard used BarChart — replaced with gradient AreaChart", "severity": "low", "status": "fixed"},
+    {"description": "PayrollPage table rows lacked avatar, card-row styling, sort toggle — fully rebuilt", "severity": "medium", "status": "fixed"},
+    {"description": "StatCard lacked sparkline and ring variants — now implemented", "severity": "medium", "status": "fixed"}
+  ],
+  "recommendations": [
+    {"description": "Add express-rate-limit to server.js", "severity": "medium", "effort": "low"},
+    {"description": "Add React error boundaries to page components", "severity": "medium", "effort": "medium"},
+    {"description": "Add server-side month/year range validation in payrollController", "severity": "low", "effort": "low"}
+  ]
+}
