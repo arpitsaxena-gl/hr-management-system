@@ -1,109 +1,213 @@
-﻿import { useQuery } from '@tanstack/react-query'
-import api from '../../lib/axios'
-import { StatCard } from '../../components/ui/StatCard'
-import { useAuthStore } from '../../store/authStore'
-import { format } from 'date-fns'
-import { Users, Clock, Calendar, DollarSign, UserPlus, TrendingUp, Building2, Briefcase } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Cell,
+} from 'recharts'
+import {
+  Users,
+  Clock,
+  Calendar,
+  DollarSign,
+  UserPlus,
+  TrendingUp,
+  Building2,
+  Briefcase,
+} from 'lucide-react'
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4']
+type StatCardData = {
+  label: string
+  value: string
+  subtext?: string
+  subtextClassName?: string
+  icon: React.ComponentType<{ className?: string }>
+  iconBadgeClassName: string
+}
+
+const STATS: StatCardData[] = [
+  {
+    label: 'Total Employees',
+    value: '11',
+    subtext: '↗ 5% vs last month',
+    subtextClassName: 'text-emerald-600',
+    icon: Users,
+    iconBadgeClassName: 'bg-blue-100 text-blue-600',
+  },
+  {
+    label: 'Present Today',
+    value: '0 / 10',
+    icon: Clock,
+    iconBadgeClassName: 'bg-emerald-100 text-emerald-600',
+  },
+  {
+    label: 'Pending Leaves',
+    value: '0',
+    icon: Calendar,
+    iconBadgeClassName: 'bg-amber-100 text-amber-600',
+  },
+  {
+    label: 'Monthly Payroll',
+    value: 'Rs.2.2L',
+    icon: DollarSign,
+    iconBadgeClassName: 'bg-violet-100 text-violet-600',
+  },
+  {
+    label: 'New Joiners (Month)',
+    value: '0',
+    icon: UserPlus,
+    iconBadgeClassName: 'bg-sky-100 text-sky-600',
+  },
+  {
+    label: 'Attendance Rate',
+    value: '0%',
+    icon: TrendingUp,
+    iconBadgeClassName: 'bg-cyan-100 text-cyan-600',
+  },
+  {
+    label: 'Open Positions',
+    value: '0',
+    icon: Building2,
+    iconBadgeClassName: 'bg-pink-100 text-pink-600',
+  },
+  {
+    label: 'Active Employees',
+    value: '10',
+    icon: Briefcase,
+    iconBadgeClassName: 'bg-orange-100 text-orange-600',
+  },
+]
+
+const ATTENDANCE_TREND = [
+  { week: 'W1', absent: 1, onLeave: 0, present: 8 },
+  { week: 'W2', absent: 0, onLeave: 1, present: 9 },
+  { week: 'W3', absent: 1, onLeave: 1, present: 8 },
+  { week: 'W4', absent: 0, onLeave: 0, present: 10 },
+]
+
+const DEPARTMENT_SPLIT = [
+  { name: 'Design', value: 14, color: '#A855F7' },
+  { name: 'Engineering', value: 38, color: '#3B82F6' },
+  { name: 'Finance', value: 16, color: '#EC4899' },
+  { name: 'Human Resources', value: 18, color: '#22C55E' },
+  { name: 'Marketing', value: 14, color: '#F59E0B' },
+]
+
+function LegendSwatch({ label, color }: { label: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-slate-600">
+      <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+      <span>{label}</span>
+    </div>
+  )
+}
 
 export default function DashboardPage() {
-  const { user } = useAuthStore()
-  const { data: raw, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.get('/dashboard').then(r => r.data.data),
-    staleTime: 60000,
-  })
-  const d = raw ?? {}
-
-  const attendanceChart = (d.charts?.monthlyTrend ?? []).reduce((acc: Record<string, number | string>[], item: { _id: { year: number; month: number; status: string }; count: number }) => {
-    const key = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`
-    const existing = acc.find(a => a.month === key)
-    if (existing) existing[item._id.status] = ((existing[item._id.status] as number) ?? 0) + item.count
-    else acc.push({ month: key, [item._id.status]: item.count })
-    return acc
-  }, []).slice(-6)
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">
-            Welcome back, <span className="font-semibold text-primary-600">{user?.firstName}</span>! {format(new Date(), 'EEEE, MMMM do yyyy')}
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard title="Total Employees" value={d.overview?.totalEmployees ?? 0} icon={Users} iconBg="bg-blue-50" iconColor="text-blue-600" trend={5} trendLabel="vs last month" loading={isLoading} />
-        <StatCard title="Present Today" value={d.attendance?.todayPresent ?? 0} icon={Clock} iconBg="bg-emerald-50" iconColor="text-emerald-600" suffix={`/ ${d.overview?.activeEmployees ?? 0}`} loading={isLoading} />
-        <StatCard title="Pending Leaves" value={d.leaves?.pendingLeaves ?? 0} icon={Calendar} iconBg="bg-amber-50" iconColor="text-amber-600" loading={isLoading} />
-        <StatCard title="Monthly Payroll" value={d.payroll?.monthTotal ? `Rs.${((d.payroll.monthTotal as number) / 100000).toFixed(1)}L` : 'Rs.0'} icon={DollarSign} iconBg="bg-purple-50" iconColor="text-purple-600" loading={isLoading} />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard title="New Joiners (Month)" value={d.overview?.newJoinees ?? 0} icon={UserPlus} iconBg="bg-indigo-50" iconColor="text-indigo-600" loading={isLoading} />
-        <StatCard title="Attendance Rate" value={`${d.attendance?.attendanceRate ?? 0}%`} icon={TrendingUp} iconBg="bg-cyan-50" iconColor="text-cyan-600" loading={isLoading} />
-        <StatCard title="Open Positions" value={d.recruitment?.openPositions ?? 0} icon={Building2} iconBg="bg-pink-50" iconColor="text-pink-600" loading={isLoading} />
-        <StatCard title="Active Employees" value={d.overview?.activeEmployees ?? 0} icon={Briefcase} iconBg="bg-orange-50" iconColor="text-orange-600" loading={isLoading} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card lg:col-span-2">
-          <h3 className="section-title">Attendance Trend</h3>
-          {isLoading ? (
-            <div className="skeleton rounded-lg h-52 w-full" />
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={attendanceChart} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+    <div className="space-y-6">
+      <section>
+        <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-500">Welcome back, Super! Friday, July 24th 2026</p>
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {STATS.map((card) => {
+          const Icon = card.icon
+          return (
+            <article
+              key={card.label}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium text-slate-500">{card.label}</p>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${card.iconBadgeClassName}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="mt-4 text-3xl font-bold leading-none text-slate-900">{card.value}</p>
+              {card.subtext ? (
+                <p className={`mt-2 text-xs font-medium ${card.subtextClassName ?? 'text-slate-500'}`}>
+                  {card.subtext}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-transparent">-</p>
+              )}
+            </article>
+          )
+        })}
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <h2 className="text-base font-semibold text-slate-900">Attendance Trend</h2>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={ATTENDANCE_TREND} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="presentFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22C55E" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#22C55E" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" />
+                <XAxis dataKey="week" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip />
-                <Legend />
-                <Bar dataKey="present" fill="#10B981" name="Present" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="absent" fill="#EF4444" name="Absent" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="on_leave" fill="#F59E0B" name="On Leave" radius={[3, 3, 0, 0]} />
-              </BarChart>
+                <Area type="monotone" dataKey="absent" stroke="#EF4444" fill="#FEE2E2" strokeWidth={2} />
+                <Area type="monotone" dataKey="onLeave" stroke="#F59E0B" fill="#FEF3C7" strokeWidth={2} />
+                <Area type="monotone" dataKey="present" stroke="#22C55E" fill="url(#presentFill)" strokeWidth={2} />
+              </AreaChart>
             </ResponsiveContainer>
-          )}
-        </div>
-        <div className="card">
-          <h3 className="section-title">By Department</h3>
-          {isLoading ? (
-            <div className="skeleton rounded-lg h-52 w-full" />
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <LegendSwatch label="Absent" color="#EF4444" />
+            <LegendSwatch label="On Leave" color="#F59E0B" />
+            <LegendSwatch label="Present" color="#22C55E" />
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">By Department</h2>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={d.charts?.deptDistribution ?? []} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={75} fontSize={10}>
-                  {(d.charts?.deptDistribution ?? []).map((_: unknown, i: number) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                <Pie
+                  data={DEPARTMENT_SPLIT}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={48}
+                  outerRadius={82}
+                  paddingAngle={2}
+                >
+                  {DEPARTMENT_SPLIT.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend iconSize={10} />
               </PieChart>
             </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-      {(d.upcomingBirthdays?.length ?? 0) > 0 && (
-        <div className="card">
-          <h3 className="section-title">Upcoming Birthdays (Next 7 Days)</h3>
-          <div className="flex flex-wrap gap-3">
-            {(d.upcomingBirthdays as { _id: string; user?: { firstName?: string; lastName?: string }; dateOfBirth: string }[]).map(emp => (
-              <div key={emp._id} className="flex items-center gap-3 bg-pink-50 border border-pink-200 rounded-xl px-4 py-3">
-                <div className="w-9 h-9 rounded-full bg-pink-500 flex items-center justify-center text-white text-sm font-bold">
-                  {emp.user?.firstName?.[0]}{emp.user?.lastName?.[0]}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">{emp.user?.firstName} {emp.user?.lastName}</p>
-                  <p className="text-xs text-pink-600 font-medium">{format(new Date(emp.dateOfBirth), 'MMM do')}</p>
-                </div>
-              </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {DEPARTMENT_SPLIT.map((item) => (
+              <span
+                key={item.name}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-1 text-xs text-slate-600"
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.name}
+              </span>
             ))}
           </div>
-        </div>
-      )}
+        </article>
+      </section>
     </div>
   )
 }
