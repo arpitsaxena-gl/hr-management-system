@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import {
   Area,
   AreaChart,
@@ -26,7 +27,7 @@ type StatCardData = {
   value: string
   subtext?: string
   subtextClassName?: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   iconBadgeClassName: string
 }
 
