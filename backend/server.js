@@ -1,4 +1,4 @@
-﻿require('express-async-errors');
+require('express-async-errors');
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -41,7 +41,7 @@ const auditRoutes = require('./src/routes/audit');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: process.env.FRONTEND_URL || 'http://localhost:3000', methods: ['GET', 'POST'] }
+  cors: { origin: process.env.FRONTEND_URL || 'http://localhost:3000', methods: ['GET', 'POST'] },
 });
 
 connectDB();
@@ -53,8 +53,11 @@ app.use(compression());
 
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW || '15') * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
-  message: { success: false, message: 'Too many requests, please try again later.' }
+  max: parseInt(process.env.RATE_LIMIT_MAX || '500'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+  skip: (req) => req.path === '/health',
 });
 app.use('/api/', limiter);
 
@@ -62,7 +65,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
