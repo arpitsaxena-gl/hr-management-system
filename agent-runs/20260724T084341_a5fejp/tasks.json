@@ -1,1 +1,534 @@
-{ "_meta": { "agent": "task-list-agent", "run_id": "20260724T084341_a5fejp", "generated_at": "2026-07-24T03:27:25.803Z" }, "note": "See full tasks.json in repository" }
+{
+  "_meta": {
+    "agent": "task-list-agent",
+    "cli": "Cursor Agent CLI",
+    "llm": "claude-4.6-sonnet-medium",
+    "run_id": "20260724T084341_a5fejp",
+    "generated_at": "2026-07-24T03:27:25.803Z"
+  },
+  "tasks": [
+    {
+      "id": "T-01",
+      "title": "Confirm stack detection and map analysis gaps to tasks",
+      "description": "Verify detected stack (React 18 / Vite / Express / Mongoose) matches codebase. Confirm all 3 validation gaps, 2 performance findings, 1 security finding, and 6 issues from analysis_output.json are each covered by at least one task. Confirm design §IX traceability links are complete.",
+      "files": [
+        "agent-runs/20260724T084341_a5fejp/analysis_output.json",
+        "agent-runs/20260724T084341_a5fejp/02-design-document.md"
+      ],
+      "acceptance_criteria": [
+        "Every analysis_output.json issues[], performance_findings[], security_findings[], and field_validations.general[] entry maps to a T-xx task id",
+        "No orphaned findings remain uncovered"
+      ],
+      "priority": "high",
+      "dependencies": [],
+      "estimated_complexity": "low",
+      "phase": "Phase 1 — Analysis & Design Alignment",
+      "traceability": "analysis_output.json all top-level arrays; 02-design-document.md §IX",
+      "jira_label_hint": "analysis"
+    },
+    {
+      "id": "T-02",
+      "title": "Identify all file/module touch-points and dependency order",
+      "description": "Establish the dependency-safe build order: shared utilities and component interfaces before consumers; backend changes before frontend integration; shell components before page rewrites. Confirm express-rate-limit npm package requirement.",
+      "files": [
+        "client/src/lib/formatters.ts",
+        "client/src/components/ui/StatCard.tsx",
+        "client/src/components/layout/Sidebar.tsx",
+        "client/src/components/layout/Navbar.tsx",
+        "client/src/pages/dashboard/DashboardPage.tsx",
+        "client/src/pages/payroll/PayrollPage.tsx",
+        "backend/src/controllers/dashboardController.js",
+        "backend/src/routes/payroll.js",
+        "backend/server.js",
+        "client/src/App.tsx"
+      ],
+      "acceptance_criteria": [
+        "Dependency graph in task list is acyclic",
+        "Every T-xx dependencies array references only lower-numbered or prior-phase tasks",
+        "express-rate-limit is flagged for npm install in backend"
+      ],
+      "priority": "high",
+      "dependencies": ["T-01"],
+      "estimated_complexity": "low",
+      "phase": "Phase 1 — Analysis & Design Alignment",
+      "traceability": "02-design-document.md §VIII Ordered Implementation Steps",
+      "jira_label_hint": "planning"
+    },
+    {
+      "id": "T-03",
+      "title": "Create formatINR() / formatLakhs() currency utility",
+      "description": "Create client/src/lib/formatters.ts exporting formatINR(value: number): string and formatLakhs(value: number): string. Replace all Rs. literals and bare / 100000 magic numbers in DashboardPage and PayrollPage. Closes analysis_output.json.issues[0] (currency inconsistency).",
+      "files": [
+        "client/src/lib/formatters.ts"
+      ],
+      "acceptance_criteria": [
+        "formatINR(120000) returns '₹1,20,000'",
+        "formatLakhs(1250000) returns '₹12.5L'",
+        "No Rs. string literal anywhere in client/src/",
+        "No bare / 100000 divisor in dashboard/payroll pages"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "low",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "analysis_output.json.issues[0]; analysis_output.json.recommendations[6]; design §IX formatINR() utility",
+      "jira_label_hint": "frontend utilities"
+    },
+    {
+      "id": "T-04",
+      "title": "Extend StatCard.tsx to support sparkline and ring variants",
+      "description": "Extend StatCardProps interface with variant: 'default' | 'sparkline' | 'ring', trend?, sparkData?, ringValue?. Render inline SVG sparkline for sparkline variant; SVG circle-progress ring for ring variant; gradient icon badge for all variants; trend pill when trend prop is provided. Closes analysis_output.json.issues[4].",
+      "files": [
+        "client/src/components/ui/StatCard.tsx"
+      ],
+      "acceptance_criteria": [
+        "<StatCard variant='ring' ringValue={87} /> renders circular SVG progress at 87%",
+        "<StatCard variant='sparkline' sparkData={[10,14,12,18,22]} /> renders connected polyline",
+        "trend={{ value: 12, label: 'vs last month' }} renders green +12% pill",
+        "Existing <StatCard /> usage without new props renders unchanged (backward-compat)"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "analysis_output.json.issues[4]; design §II StatCard.tsx; design §VIII Step 2",
+      "jira_label_hint": "frontend components"
+    },
+    {
+      "id": "T-05",
+      "title": "Install express-rate-limit and wire into backend/server.js",
+      "description": "Add express-rate-limit to backend/package.json. In backend/server.js, import rateLimit and mount with windowMs: 15*60*1000, max: 500, standardHeaders: true, legacyHeaders: false on app.use('/api/', limiter) after helmet/cors. Closes security_findings[0] OWASP A04.",
+      "files": [
+        "backend/package.json",
+        "backend/server.js"
+      ],
+      "acceptance_criteria": [
+        "GET /api/dashboard/stats returns X-RateLimit-Limit: 500 header",
+        "501st request within 15 min window returns HTTP 429 with correct message body",
+        "npm start in backend succeeds with no errors"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "low",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "analysis_output.json.security_findings[0]; design §VI Rate Limiting; design §VII Security",
+      "jira_label_hint": "security backend"
+    },
+    {
+      "id": "T-06",
+      "title": "Fix birthday aggregation in dashboardController.js",
+      "description": "Replace Employee.find({ employmentStatus: 'active' }) + JS filter birthday scan with MongoDB aggregation using $addFields birthMonth + $match + $limit 5 + $project. Eliminates full collection scan O(n) → O(index). Closes performance_findings[0].",
+      "files": [
+        "backend/src/controllers/dashboardController.js"
+      ],
+      "acceptance_criteria": [
+        "Dashboard stats endpoint returns correct birthday employees for current month",
+        "No Employee.find() call remains in the birthday section",
+        "API response shape for birthday employees is unchanged"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "low",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "analysis_output.json.performance_findings[0]; design §V Business Logic §2",
+      "jira_label_hint": "backend performance"
+    },
+    {
+      "id": "T-07",
+      "title": "Add GET /api/dashboard/attendance-trend endpoint",
+      "description": "Add getAttendanceTrend handler in dashboardController.js accepting month (1–12) and year query params, runs MongoDB aggregation over attendances grouping by date, returns [{ date, present, absent, onLeave }]. Register route in backend/src/routes/dashboard.js with protect + authorize('admin','hr').",
+      "files": [
+        "backend/src/controllers/dashboardController.js",
+        "backend/src/routes/dashboard.js"
+      ],
+      "acceptance_criteria": [
+        "GET /api/dashboard/attendance-trend?month=7&year=2026 returns HTTP 200 with correct data array",
+        "month=13 returns HTTP 400",
+        "Unauthenticated call returns HTTP 401",
+        "HR role returns 200"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-06"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "design §IV New Backend Endpoint; design §V Workflow §4",
+      "jira_label_hint": "backend api"
+    },
+    {
+      "id": "T-08",
+      "title": "Add express-validator rules to GET /api/payroll route",
+      "description": "Import { query } from express-validator and validate middleware. Add rules: status.isIn(['draft','processed','paid']), month.isInt({min:1,max:12}), year.isInt({min:2000,max:currentYear+1}). Wire validate middleware before controller. Closes all three field_validations.general gaps.",
+      "files": [
+        "backend/src/routes/payroll.js"
+      ],
+      "acceptance_criteria": [
+        "GET /api/payroll?status=invalid returns HTTP 400 with errors[0].field === 'status'",
+        "GET /api/payroll?month=13 returns HTTP 400",
+        "GET /api/payroll?year=1999 returns HTTP 400",
+        "Valid params (status=draft&month=7&year=2026) pass through to controller unchanged"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "low",
+      "phase": "Phase 2 — Foundations & Data Layer",
+      "traceability": "analysis_output.json.field_validations.general[0-2]; design §IV Modified Endpoint; design §V Validation Matrix",
+      "jira_label_hint": "backend validation"
+    },
+    {
+      "id": "T-09",
+      "title": "Overhaul Sidebar.tsx with grouped collapsible navigation",
+      "description": "Restructure flat NAV_ITEMS into 5 category groups: Core HR, Payroll & Finance, Talent, Workspace, System Admin. Add collapsedGroups state via useState. Render collapsible sections with ChevronDown/Right icons. Active items: bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-xl. Inactive: hover:bg-indigo-50. Closes issues[1].",
+      "files": [
+        "client/src/components/layout/Sidebar.tsx"
+      ],
+      "acceptance_criteria": [
+        "Sidebar renders 5 labelled collapsible groups",
+        "Clicking group header collapses/expands items with animation",
+        "Active route item shows Indigo/Violet gradient",
+        "Sidebar collapsed state persists across navigation",
+        "Existing SidebarProps interface (collapsed: boolean, onToggle callback) remains unchanged"
+      ],
+      "priority": "high",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.issues[1]; analysis_output.json.recommendations[0]; design §VIII Step 7; requirement §1 Sidebar",
+      "jira_label_hint": "frontend shell"
+    },
+    {
+      "id": "T-10",
+      "title": "Overhaul Navbar.tsx with ⌘K command palette and modern controls",
+      "description": "Add cmdKOpen boolean state. Render ⌘K search bar button opening a modal command palette that filters nav items client-side. Add dynamic date pill badge, animated notification bell with dot, + Quick Action button (Indigo). Modernize profile dropdown with greeting and role badge via useAuthStore. Handle Meta+K and Ctrl+K keyboard shortcuts.",
+      "files": [
+        "client/src/components/layout/Navbar.tsx"
+      ],
+      "acceptance_criteria": [
+        "⌘K (Mac) or Ctrl+K (Win/Linux) opens command palette modal",
+        "Typing filters nav items in real time",
+        "Escape closes the modal",
+        "Date pill shows current date",
+        "Profile dropdown renders user name + role",
+        "Existing NavbarProps (onSidebarToggle) remain functional"
+      ],
+      "priority": "high",
+      "dependencies": ["T-04"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.recommendations[1]; design §VIII Step 8; design §IV ⌘K Command Palette; requirement §1 Topbar",
+      "jira_label_hint": "frontend shell"
+    },
+    {
+      "id": "T-11",
+      "title": "Rewrite DashboardPage.tsx — greeting header and 8-card KPI grid",
+      "description": "Replace DashboardPage with production-ready implementation. Header: dynamic greeting, date pill, + Quick Action button. 8 KPI cards using new StatCard variants: Total Employees (default+trend), New This Month (sparkline), Present Today (default+trend), Pending Leaves (amber), Attendance Rate (ring), Monthly Payroll (sparkline+₹), Open Positions (default), Upcoming Birthdays (default). All currency via formatINR(). Uses useQuery(['dashboard']) → GET /api/dashboard/stats.",
+      "files": [
+        "client/src/pages/dashboard/DashboardPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "8 KPI cards render with correct values from API",
+        "Monthly Payroll card shows ₹ symbol (no Rs.)",
+        "Attendance Rate card shows circular ring",
+        "New This Month card shows sparkline",
+        "Trend badges show +/- with color",
+        "Page renders without errors when API data is loading (skeleton state)"
+      ],
+      "priority": "high",
+      "dependencies": ["T-03", "T-04", "T-07"],
+      "estimated_complexity": "high",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.issues[0]; design §II DashboardPage; design §VIII Step 9; requirement §2 Header + KPI Grid",
+      "jira_label_hint": "frontend dashboard"
+    },
+    {
+      "id": "T-12",
+      "title": "Rewrite DashboardPage.tsx — gradient AreaChart with period toggles",
+      "description": "Replace BarChart with Recharts AreaChart rendering Present (Indigo), Absent (Rose), On Leave (Amber) gradient series. Add attendancePeriod: 'daily' | 'weekly' | 'monthly' state with pill toggles. Daily triggers useQuery(['attendance-trend', month, year]). Include Tooltip with formatted labels. Closes issues[2].",
+      "files": [
+        "client/src/pages/dashboard/DashboardPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "Chart renders as AreaChart (not BarChart)",
+        "Toggling Daily fetches /api/dashboard/attendance-trend",
+        "Toggling Weekly/Monthly switches to existing data without new API call",
+        "All three series visible with distinct gradient fills",
+        "Chart tooltip shows correct labels"
+      ],
+      "priority": "high",
+      "dependencies": ["T-11"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.issues[2]; design §V Workflow §4; design §VIII Step 9; requirement §2 Attendance Trend",
+      "jira_label_hint": "frontend dashboard"
+    },
+    {
+      "id": "T-13",
+      "title": "Rewrite DashboardPage.tsx — Donut chart, Activity Feed, Quick Actions",
+      "description": "Add Recharts PieChart donut with center headcount overlay and color-coded department legend. Add Recent Activity Feed vertical timeline (check-ins, leave approvals, new joiners) using recentActivity[] from dashboard API. Add Quick Actions panel 2×2 grid (Clock In/Out, Leave Request, Holidays, Break) with Lucide icons.",
+      "files": [
+        "client/src/pages/dashboard/DashboardPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "Donut chart renders with center count label",
+        "Department legend shows name + color + percentage",
+        "Activity Feed renders ≥3 timeline items from API data",
+        "Quick Actions panel renders 4 buttons with icons",
+        "Page layout is responsive and matches modern SaaS card grid"
+      ],
+      "priority": "high",
+      "dependencies": ["T-12"],
+      "estimated_complexity": "medium",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "design §II DashboardPage; design §VIII Step 9; requirement §2 Department Breakdown + Widgets",
+      "jira_label_hint": "frontend dashboard"
+    },
+    {
+      "id": "T-14",
+      "title": "Rewrite PayrollPage.tsx — stat cards, filters, floating card-table, sort, actions",
+      "description": "Full PayrollPage overhaul: 4 top stat cards with sparklines (₹ totals), pill month selector, year dropdown. Floating card-table rows (bg-white rounded-2xl shadow-sm hover:shadow-md). InitialAvatar with online status dot. A-Z/Z-A sort toggle on EMPLOYEE header (client-side sortDir state). Net Salary emerald badge (₹ prefix). Soft status pills (Processed=green, Draft=amber, Paid=blue). ActionMenu dropdown (Approve/Mark Paid/View). staleTime: 60000 on both React Query hooks. Closes issues[3] and performance_findings[1].",
+      "files": [
+        "client/src/pages/payroll/PayrollPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "4 stat cards render with correct ₹ totals from GET /api/payroll/summary",
+        "Clicking month pill changes filter and re-fetches",
+        "Rows render as elevated cards with hover shadow",
+        "Employee column shows initials avatar + status dot",
+        "Sort toggle changes direction and re-renders without new API call",
+        "Net Salary column shows emerald badge with ₹ symbol",
+        "Status badges show correct tinted pills",
+        "ActionMenu dropdown opens on action icon click",
+        "React Query staleTime: 60000 is set on payroll queries"
+      ],
+      "priority": "high",
+      "dependencies": ["T-03", "T-04", "T-08"],
+      "estimated_complexity": "high",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.issues[3]; analysis_output.json.performance_findings[1]; design §VIII Step 10; requirement §3",
+      "jira_label_hint": "frontend payroll"
+    },
+    {
+      "id": "T-15",
+      "title": "Add ErrorBoundary wrapper in App.tsx",
+      "description": "Create a class-based ErrorBoundary React component that catches render errors in private route subtree and renders a fallback UI (error card + Reload button). Wrap PrivateRoute/Outlet in App.tsx. Closes architecture.risks[2] and issues[5].",
+      "files": [
+        "client/src/App.tsx"
+      ],
+      "acceptance_criteria": [
+        "Deliberate throw inside a page component is caught by boundary (displays fallback, does not crash SPA)",
+        "Pages outside the boundary (e.g. LoginPage) are unaffected",
+        "Existing routing and auth behavior is unchanged"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-02"],
+      "estimated_complexity": "low",
+      "phase": "Phase 3 — Incremental Implementation",
+      "traceability": "analysis_output.json.architecture.risks[2]; analysis_output.json.issues[5]; design §II Cross-Cutting Concerns; design §VIII Step 11",
+      "jira_label_hint": "frontend stability"
+    },
+    {
+      "id": "T-16",
+      "title": "API validation tests — payroll filter params",
+      "description": "Manually verify all three new express-validator rules on GET /api/payroll. Test matrix: invalid status → 400, month=0 → 400, month=13 → 400, month=1 → passes, year=1999 → 400, year=2099 → 400, year=2026 → passes, all valid → 200. Regression: no params still returns 200.",
+      "files": [
+        "backend/src/routes/payroll.js",
+        "backend/src/middleware/validate.js"
+      ],
+      "acceptance_criteria": [
+        "All 8 test cases produce expected HTTP status",
+        "Error body matches { success: false, errors: [{ field, message }] } shape",
+        "Zero regression on existing payroll read paths"
+      ],
+      "priority": "high",
+      "dependencies": ["T-08"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.field_validations.general[0-2]; design §V Validation Matrix",
+      "jira_label_hint": "testing backend"
+    },
+    {
+      "id": "T-17",
+      "title": "Unit-test formatINR() utility",
+      "description": "Add test cases for formatINR() covering: 0, 1000, 120000, 1250000, negative values. Verify no Rs. string returned and function is pure.",
+      "files": [
+        "client/src/lib/formatters.ts"
+      ],
+      "acceptance_criteria": [
+        "formatINR(0) = '₹0'",
+        "formatINR(1000) = '₹1,000'",
+        "formatINR(120000) = '₹1,20,000'",
+        "Negative values handled gracefully (no crash)",
+        "No Rs. string returned in any case"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-03"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.issues[0]; analysis_output.json.recommendations[6]",
+      "jira_label_hint": "testing frontend"
+    },
+    {
+      "id": "T-18",
+      "title": "StatCard variant rendering verification",
+      "description": "Visually verify all three StatCard variants: default (no extras), sparkline (SVG polyline, no layout shift), ring (SVG circle at correct stroke-dashoffset for 0%, 50%, 100%). Verify backward compatibility with existing usage.",
+      "files": [
+        "client/src/components/ui/StatCard.tsx"
+      ],
+      "acceptance_criteria": [
+        "All three variants render without TypeScript type errors",
+        "ringValue=0 shows empty ring; ringValue=100 shows full ring",
+        "sparkData=[] shows flat sparkline without crash",
+        "Existing callers unaffected"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-04"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.issues[4]; design §II StatCard.tsx",
+      "jira_label_hint": "testing frontend"
+    },
+    {
+      "id": "T-19",
+      "title": "Dashboard AreaChart + period toggle verification",
+      "description": "Visually verify attendance AreaChart: defaults to Monthly on load; Daily fires attendance-trend query; all three gradient series visible; tooltips correct; chart responsive at 375px.",
+      "files": [
+        "client/src/pages/dashboard/DashboardPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "No BarChart import remains in DashboardPage",
+        "AreaChart renders three named series",
+        "Period toggle state change produces correct chart data swap",
+        "No console errors during toggle",
+        "Responsive at 375px width"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-12"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.issues[2]; design §V Workflow §4",
+      "jira_label_hint": "testing frontend"
+    },
+    {
+      "id": "T-20",
+      "title": "Payroll sort toggle and card-row verification",
+      "description": "Verify payroll page: A-Z sort sorts ascending by employee.firstName without API call; Z-A sorts descending; card rows have hover shadow; InitialAvatar shows 2-letter initials; status badges show correct tinted pills; ActionMenu dropdown opens/closes correctly.",
+      "files": [
+        "client/src/pages/payroll/PayrollPage.tsx"
+      ],
+      "acceptance_criteria": [
+        "Sort changes order without API call (no new network request)",
+        "Hover shadow is visually distinct",
+        "Avatars always show 2 letters",
+        "No status badge renders plain text without pill styling",
+        "ActionMenu closes on Escape or outside click"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-14"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.issues[3]; design §V Workflow §3; requirement §3",
+      "jira_label_hint": "testing frontend"
+    },
+    {
+      "id": "T-21",
+      "title": "Rate limit smoke test and build verification",
+      "description": "Verify express-rate-limit is installed and active: backend npm start succeeds; GET /api/dashboard/stats returns X-RateLimit-Limit: 500 header; frontend npm run build passes with zero TypeScript errors; no Rs. or bare / 100000 magic number survives linting.",
+      "files": [
+        "backend/server.js",
+        "backend/package.json"
+      ],
+      "acceptance_criteria": [
+        "Backend npm start exits 0 (or stays running)",
+        "Response includes rate-limit headers",
+        "Frontend npm run build completes with 0 TypeScript errors",
+        "ESLint passes"
+      ],
+      "priority": "high",
+      "dependencies": ["T-05"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "analysis_output.json.security_findings[0]; design §VI Rate Limiting",
+      "jira_label_hint": "testing security"
+    },
+    {
+      "id": "T-22",
+      "title": "Regression check on unchanged routes and components",
+      "description": "Verify that overhauling Sidebar, Navbar, StatCard, DashboardPage, PayrollPage, and App.tsx does not break: LoginPage auth flow, EmployeesPage/LeavesPage/AttendancePage/ReportsPage rendering, Sidebar collapse from Layout.tsx, Navbar onSidebarToggle from Layout.tsx, ErrorBoundary not swallowing successful renders.",
+      "files": [
+        "client/src/App.tsx",
+        "client/src/components/layout/Layout.tsx"
+      ],
+      "acceptance_criteria": [
+        "All 10+ non-modified page routes render without white-screen errors",
+        "Sidebar toggle works from Layout",
+        "JWT expiry still redirects to login",
+        "No TypeScript import errors introduced"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-09", "T-10", "T-11", "T-13", "T-14", "T-15"],
+      "estimated_complexity": "low",
+      "phase": "Phase 4 — Testing & Quality Control",
+      "traceability": "design §VIII Impact Analysis Blast Radius; design §II Cross-Cutting Concerns",
+      "jira_label_hint": "testing regression"
+    },
+    {
+      "id": "T-23",
+      "title": "Compatibility, migration, and rollback notes",
+      "description": "Document release compatibility notes: no MongoDB schema migrations required; express-rate-limit requires npm install before deploy; new payroll validation is a breaking change for previously-tolerated invalid inputs; attendance-trend endpoint is additive. Document rollback plan (revert PR or remove specific code blocks).",
+      "files": [
+        "agent-runs/20260724T084341_a5fejp/03-task-list.md"
+      ],
+      "acceptance_criteria": [
+        "Rollback procedure documented and executable in <5 min by any backend developer",
+        "No data loss on rollback",
+        "Breaking change for payroll validation is explicitly called out"
+      ],
+      "priority": "high",
+      "dependencies": ["T-16", "T-17", "T-18", "T-19", "T-20", "T-21", "T-22"],
+      "estimated_complexity": "low",
+      "phase": "Phase 5 — Handoff Summary",
+      "traceability": "design §VI; design §VIII Impact Analysis",
+      "jira_label_hint": "release"
+    },
+    {
+      "id": "T-24",
+      "title": "Manual-review flags for high-risk changes",
+      "description": "Flag four backend changes for senior developer review before merge: (1) birthday $month 1-indexed off-by-one check in dashboardController.js; (2) rate limit max 500 for peak concurrent admin usage in server.js; (3) payroll year upper bound for advance payroll processing in payroll.js; (4) attendances.date index utilization in attendance trend aggregation.",
+      "files": [
+        "backend/src/controllers/dashboardController.js",
+        "backend/src/routes/payroll.js",
+        "backend/server.js"
+      ],
+      "acceptance_criteria": [
+        "Each flagged item reviewed and sign-off recorded in PR comments",
+        "No merge without sign-off on items 1 (birthday off-by-one) and 3 (year upper bound)"
+      ],
+      "priority": "high",
+      "dependencies": ["T-23"],
+      "estimated_complexity": "low",
+      "phase": "Phase 5 — Handoff Summary",
+      "traceability": "design §X Open Questions #1, #3, #4; analysis_output.json.performance_findings[0]",
+      "jira_label_hint": "review"
+    },
+    {
+      "id": "T-25",
+      "title": "Traceability sign-off and parent ticket closure",
+      "description": "Confirm full traceability from requirements → design → tasks → implementation. All 6 issues, 3 performance findings, 2 security findings, 3 field validation gaps, and all requirement §1-§3 sub-items are covered by T-03 through T-15. All tasks roll up to one parent Jira Story. Notify PR Agent (pr-creator-agent) to open pull request for branch feature/hrms-dashboard-payroll-overhaul.",
+      "files": [
+        "agent-runs/20260724T084341_a5fejp/03-task-list.md",
+        "agent-runs/20260724T084341_a5fejp/tasks.json"
+      ],
+      "acceptance_criteria": [
+        "Sign-off table is complete with no uncovered finding",
+        "All T-xx tasks are in tasks.json",
+        "Parent Jira Story/Task is updated to link all subtasks",
+        "PR Agent is notified to open the pull request"
+      ],
+      "priority": "medium",
+      "dependencies": ["T-23", "T-24"],
+      "estimated_complexity": "low",
+      "phase": "Phase 5 — Handoff Summary",
+      "traceability": "02-design-document.md §IX full traceability table; single-cycle deliverable requirement",
+      "jira_label_hint": "release tracking"
+    }
+  ]
+}
