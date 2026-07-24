@@ -3,15 +3,17 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
-const fetchMe = vi.fn()
-const logout = vi.fn()
+const mockAuth = vi.hoisted(() => ({
+  fetchMe: vi.fn(),
+  logout: vi.fn(),
+}))
 
 vi.mock('./store/authStore', () => ({
   useAuthStore: () => ({
     isAuthenticated: true,
     token: 'test-token',
-    fetchMe,
-    logout,
+    fetchMe: mockAuth.fetchMe,
+    logout: mockAuth.logout,
   }),
 }))
 
@@ -33,7 +35,7 @@ vi.mock('./pages/dashboard/DashboardPage', () => ({
 
 describe('App routing', () => {
   beforeEach(() => {
-    fetchMe.mockClear()
+    mockAuth.fetchMe.mockClear()
     window.history.pushState({}, '', '/dashboard')
   })
 
@@ -42,6 +44,6 @@ describe('App routing', () => {
 
     expect(screen.getByTestId('layout-shell')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Dashboard Page Mock' })).toBeInTheDocument()
-    expect(fetchMe).toHaveBeenCalledTimes(1)
+    expect(mockAuth.fetchMe).toHaveBeenCalledTimes(1)
   })
 })

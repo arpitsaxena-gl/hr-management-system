@@ -3,15 +3,17 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sidebar } from './Sidebar'
 
-const logout = vi.fn()
+const mockAuth = vi.hoisted(() => ({
+  logout: vi.fn(),
+}))
 
 vi.mock('../../store/authStore', () => ({
-  useAuthStore: () => ({ logout }),
+  useAuthStore: () => ({ logout: mockAuth.logout }),
 }))
 
 describe('Sidebar', () => {
   beforeEach(() => {
-    logout.mockClear()
+    mockAuth.logout.mockClear()
   })
 
   it('renders dashboard first with active highlight and required ordering (SCRUM-9 AC-A02, AC-A03)', () => {
@@ -68,6 +70,6 @@ describe('Sidebar', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
-    expect(logout).toHaveBeenCalledTimes(1)
+    expect(mockAuth.logout).toHaveBeenCalledTimes(1)
   })
 })
