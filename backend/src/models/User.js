@@ -1,24 +1,18 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { ROLES } = require('../config/constants');
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     User:
- *       type: object
- *       required: [firstName, lastName, email, password, role]
- *       properties:
- *         _id: { type: string }
- *         firstName: { type: string }
- *         lastName: { type: string }
- *         email: { type: string }
- *         role: { type: string, enum: [admin, hr, manager, employee] }
- *         isActive: { type: boolean }
- *         avatar: { type: string }
- */
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  throw new Error('JWT_REFRESH_SECRET environment variable is required');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
 const userSchema = new mongoose.Schema({
   firstName: { type: String, required: [true, 'First name is required'], trim: true, maxlength: 50 },
   lastName: { type: String, required: [true, 'Last name is required'], trim: true, maxlength: 50 },
@@ -61,15 +55,12 @@ userSchema.pre('save', async function(next) {
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
-
 userSchema.methods.generateAuthToken = function() {
-  return jwt.sign({ id: this._id, role: this.role }, process.env.JWT_SECRET || 'secret', { expiresIn: process.env.JWT_EXPIRE || '7d' });
+  return jwt.sign({ id: this._id, role: this.role }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
 };
-
 userSchema.methods.generateRefreshToken = function() {
-  return jwt.sign({ id: this._id }, process.env.JWT_REFRESH_SECRET || 'refresh_secret', { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' });
+  return jwt.sign({ id: this._id }, JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' });
 };
-
 userSchema.methods.passwordChangedAfter = function(jwtTimestamp) {
   if (this.passwordChangedAt) {
     const changedAt = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
@@ -77,7 +68,6 @@ userSchema.methods.passwordChangedAfter = function(jwtTimestamp) {
   }
   return false;
 };
-
 userSchema.statics.findByEmail = function(email) { return this.findOne({ email: email.toLowerCase() }); };
 
 userSchema.index({ role: 1 });
@@ -85,4 +75,3 @@ userSchema.index({ isActive: 1 });
 userSchema.index({ employee: 1 });
 
 module.exports = mongoose.model('User', userSchema);
-
