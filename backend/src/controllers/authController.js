@@ -1,16 +1,17 @@
-﻿const User = require('../models/User');
-const Employee = require('../models/Employee');
+const User = require('../models/User');
 const { createError } = require('../utils/helpers');
 const ApiResponse = require('../utils/apiResponse');
-const emailService = require('../services/emailService');
 const logger = require('../utils/logger');
+
+const ALLOWED_SELF_REGISTER_ROLES = ['employee', 'manager'];
 
 const register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, password, role } = req.body;
     const existing = await User.findByEmail(email);
     if (existing) return next(createError('Email already registered', 400));
-    const user = await User.create({ firstName, lastName, email, password, role: role || 'employee' });
+    const safeRole = ALLOWED_SELF_REGISTER_ROLES.includes(role) ? role : 'employee';
+    const user = await User.create({ firstName, lastName, email, password, role: safeRole });
     const token = user.generateAuthToken();
     const refreshToken = user.generateRefreshToken();
     await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
@@ -63,7 +64,8 @@ const refreshToken = async (req, res, next) => {
     const { refreshToken: rToken } = req.body;
     if (!rToken) return next(createError('Refresh token required', 400));
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(rToken, process.env.JWT_REFRESH_SECRET || 'refresh_secret');
+    if (!process.env.JWT_REFRESH_SECRET) return next(createError('Server configuration error', 500));
+    const decoded = jwt.verify(rToken, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
     if (!user || !user.isActive) return next(createError('Invalid token', 401));
     const newToken = user.generateAuthToken();
