@@ -1,4 +1,4 @@
-﻿export interface User {
+export interface User {
   _id: string
   firstName: string
   lastName: string
@@ -122,7 +122,7 @@ export interface Payroll {
   }
   deductions: {
     pf: number; esi: number; tds: number; professionalTax: number
-    loanRepayment: number; leave: number; other: number; totalDeductions: number
+    loanRepayment: number; leave: number; halfDay: number; other: number; totalDeductions: number
   }
   attendanceSummary: {
     totalDays: number; presentDays: number; absentDays: number
@@ -309,4 +309,111 @@ export interface ApiResponse<T> {
 export interface PaginatedApiResponse<T> {
   success: boolean; message: string; data: T[]
   pagination: PaginationInfo
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+export interface MonthlyTrendPoint {
+  month: string
+  present: number
+  absent: number
+  onLeave: number
+}
+
+export interface DeptSlice {
+  name: string
+  count: number
+  color?: string
+  percentage?: number
+}
+
+export interface ActivityEvent {
+  id: string
+  type: 'check_in' | 'leave_approved' | 'new_joiner' | 'leave_request' | 'payroll_processed'
+  title: string
+  description: string
+  timestamp: string
+  avatar?: string
+  initials?: string
+}
+
+export interface BirthdayEntry {
+  _id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  avatar?: string
+  employeeId?: string
+}
+
+export interface HolidayEntry {
+  _id: string
+  name: string
+  date: string
+  type: string
+}
+
+export interface DashboardStats {
+  overview: {
+    totalEmployees: number
+    activeEmployees: number
+    newJoinees: number
+    attrition: number
+    departments?: number
+  }
+  attendance: {
+    todayPresent: number
+    todayAbsent: number
+    attendanceRate: number
+  }
+  leaves: { pendingLeaves: number }
+  payroll: { monthTotal: number }
+  recruitment: { openPositions: number }
+  upcomingBirthdays: BirthdayEntry[]
+  charts: {
+    monthlyTrend: Array<{ _id: { month: number; year: number; status: string }; count: number }>
+    deptDistribution: DeptSlice[]
+  }
+  recentActivity?: ActivityEvent[]
+  upcomingHolidays?: HolidayEntry[]
+}
+
+// ─── Stat Card (upgraded) ────────────────────────────────────────────────────
+
+export interface StatCardProps {
+  title: string
+  value: string | number
+  icon: any
+  gradient?: string
+  iconColor?: string
+  iconBg?: string
+  trend?: number
+  trendLabel?: string
+  loading?: boolean
+  suffix?: string
+  sparklineData?: number[]
+  progressValue?: number
+  formatAs?: 'currency' | 'percent' | 'number'
+}
+
+// ─── Payroll (extended) ──────────────────────────────────────────────────────
+
+export interface PayrollRecord extends Payroll {
+  employeeName?: string
+  department?: string
+}
+
+// ─── Sort State ──────────────────────────────────────────────────────────────
+
+export interface SortState {
+  column: string
+  direction: 'asc' | 'desc' | 'none'
+}
+
+// ─── Search ──────────────────────────────────────────────────────────────────
+
+export interface SearchResults {
+  employees: Array<{ _id: string; firstName: string; lastName: string; employeeId: string; avatar?: string; department?: { name: string } }>
+  departments: Array<{ _id: string; name: string; code: string; employeeCount?: number }>
+  payrolls: Array<{ _id: string; month: number; year: number; netSalary: number; status: string; employee?: { user?: { firstName: string; lastName: string } } }>
 }
