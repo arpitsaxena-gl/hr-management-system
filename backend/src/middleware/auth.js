@@ -1,6 +1,11 @@
-﻿const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { createError } = require('../utils/helpers');
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const protect = async (req, res, next) => {
   let token;
@@ -9,7 +14,7 @@ const protect = async (req, res, next) => {
   }
   if (!token) return next(createError('Not authorized to access this route', 401));
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id).populate('employee');
     if (!user) return next(createError('User not found', 401));
     if (!user.isActive) return next(createError('Your account has been deactivated', 401));
@@ -33,7 +38,7 @@ const optionalAuth = async (req, res, next) => {
   }
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      const decoded = jwt.verify(token, JWT_SECRET);
       req.user = await User.findById(decoded.id);
     } catch (_) {}
   }
