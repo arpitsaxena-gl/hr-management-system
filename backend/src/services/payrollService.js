@@ -1,7 +1,17 @@
-﻿const Payroll = require('../models/Payroll');
+const Payroll = require('../models/Payroll');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
+
+function countWorkingDays(year, month, holidayCount) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const day = new Date(year, month - 1, d).getDay();
+    if (day !== 0 && day !== 6) workingDays++;
+  }
+  return Math.max(1, workingDays - holidayCount);
+}
 
 const calculatePayroll = async (employee, month, year) => {
   const startDate = new Date(year, month - 1, 1);
@@ -15,15 +25,17 @@ const calculatePayroll = async (employee, month, year) => {
     employee: employee._id, status: 'approved',
     startDate: { $lte: endDate }, endDate: { $gte: startDate }
   });
-  const totalWorkingDays = endDate.getDate() - holidays;
+  const totalWorkingDays = countWorkingDays(year, month, holidays);
   const salary = employee.salary || {};
   const basic = salary.basic || 0;
   const perDaySalary = totalWorkingDays > 0 ? basic / totalWorkingDays : 0;
   const overtimeHours = attendance.reduce((acc, a) => acc + (a.overtime || 0), 0);
   const overtimePay = (perDaySalary / 8) * overtimeHours * 1.5;
   const absentDeduction = perDaySalary * absentDays;
+  const halfDayDeduction = halfDays * perDaySalary * 0.5;
   const pf = basic * 0.12;
-  const esi = salary.gross <= 21000 ? salary.gross * 0.0075 : 0;
+  const gross = salary.gross || (basic + (salary.hra || 0) + (salary.da || 0) + (salary.ta || 0) + (salary.medical || 0) + (salary.other || 0));
+  const esi = gross <= 21000 ? gross * 0.0075 : 0;
   const pt = basic <= 10000 ? 0 : basic <= 15000 ? 150 : 200;
 
   return {
@@ -31,28 +43,16 @@ const calculatePayroll = async (employee, month, year) => {
     month, year,
     payPeriod: { start: startDate, end: endDate },
     earnings: {
-      basic,
-      hra: salary.hra || 0,
-      da: salary.da || 0,
-      ta: salary.ta || 0,
-      medical: salary.medical || 0,
-      overtime: Math.round(overtimePay),
-      other: salary.other || 0
+      basic, hra: salary.hra || 0, da: salary.da || 0, ta: salary.ta || 0,
+      medical: salary.medical || 0, overtime: Math.round(overtimePay), other: salary.other || 0
     },
     deductions: {
-      pf: Math.round(pf),
-      esi: Math.round(esi),
-      professionalTax: pt,
-      leave: Math.round(absentDeduction)
+      pf: Math.round(pf), esi: Math.round(esi), professionalTax: pt,
+      leave: Math.round(absentDeduction), halfDay: Math.round(halfDayDeduction)
     },
     attendanceSummary: {
-      totalDays: endDate.getDate(),
-      presentDays,
-      absentDays,
-      leaveDays,
-      holidays,
-      workingDays: totalWorkingDays,
-      overtimeHours
+      totalDays: endDate.getDate(), presentDays, absentDays, leaveDays,
+      holidays, workingDays: totalWorkingDays, overtimeHours
     }
   };
 };
